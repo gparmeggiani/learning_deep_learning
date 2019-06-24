@@ -1,8 +1,14 @@
-''' Il primo tentativo di training di un linear classfier
+"""
+    ==================================================================================
+    IMPORTANT: This script is not working and I keep it only as a memory of the first attempts.
+    Please refer to the v2 script
+    ==================================================================================
+
+    Il primo tentativo di training di un linear classfier
 
     17 Settembre 2017
     data_batch_5 è il validation set, usato per tarare gli hyperparameters
-'''
+"""
 
 import pickle
 import random
