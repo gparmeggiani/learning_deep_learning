@@ -77,7 +77,7 @@ def main():
     dataset = []
     labels = []
 
-    # Loading datasets
+    # Loading training datasets
     for i in range(4):
         filename = "../datasets/cifar-10-batches-py/data_batch_{}".format(i+1)
         print("Loading {}".format(filename))
@@ -90,13 +90,20 @@ def main():
     dataset = np.concatenate(dataset)
     labels = np.concatenate(labels)
 
+    # Load validation dataset
+    print("Loading validation set")
+    val_batch = unpickle('../datasets/cifar-10-batches-py/data_batch_5')
+    val_dataset = val_batch[b'data'].astype('float64')
+    val_labels = val_batch[b'labels']
+
     # Normalize data: subtract the mean image
     mean_image = np.mean(dataset, axis=0)
     dataset -= mean_image
+    val_dataset -= mean_image
 
     # Augment the dataset with a column on ones, in order to include the bias term in the W matrix
-    biases = np.ones((dataset.shape[0], 1))
-    dataset = np.hstack((dataset, biases))
+    dataset = np.hstack((dataset, np.ones((dataset.shape[0], 1))))
+    val_dataset = np.hstack((val_dataset, np.ones((val_dataset.shape[0], 1))))
 
     # Instantiate the linear classifier class
     lc = LinearClassifier()
@@ -106,16 +113,22 @@ def main():
     accuracy_history = []
     avg_loss = 0
     avg_accuracy = 0
+    avg_val_accuracy = 0
     iteration = 0
     while iteration < num_iterations:
 
         # Extract the minibatch and train the classifier
         minibatch_idx = np.random.randint(len(labels)-minibatch_size)
 
+        # Train
         loss, accuracy = lc.train(
-            X=dataset[minibatch_idx:minibatch_idx+minibatch_size, :].T,
+            x=dataset[minibatch_idx:minibatch_idx+minibatch_size, :].T,
             y=labels[minibatch_idx:minibatch_idx+minibatch_size]
         )
+
+        # Validate
+        val_scores = lc.eval(val_dataset.T)
+        avg_val_accuracy += np.sum(np.argmax(val_scores, axis=0) == val_labels) / len(val_labels)
 
         # Stats
         avg_loss += loss
@@ -125,11 +138,13 @@ def main():
 
             avg_loss /= stats_rate
             avg_accuracy /= stats_rate
+            avg_val_accuracy /= stats_rate
 
             print("\n\n=========================")
             print("Iteration: ", iteration)
             print("Loss: ", avg_loss)
             print("Accuracy: {:.1%}".format(avg_accuracy))
+            print("Validation accuracy: {:.1%}".format(avg_val_accuracy))
 
             plt.clf()
             plot_W(lc.W)
@@ -140,6 +155,7 @@ def main():
 
             avg_loss = 0
             avg_accuracy = 0
+            avg_val_accuracy = 0
 
         iteration += 1
 
@@ -159,20 +175,20 @@ class LinearClassifier:
         """
         self.W = np.random.randn(10, 3073) * 0.00001
 
-    def eval(self, xi):
+    def eval(self, x):
         """
         Evaluate the scores for the input image xi
 
-        :param xi: a vector of 3072 elements representing the 32x32x3 image
+        :param x: a vector of 3072 elements representing the 32x32x3 image
         :return:
         """
-        return self.W.dot(np.append(xi, 1))
+        return self.W.dot(x)
 
-    def train(self, X, y, learning_rate=1e-7, reg=2.5e4):
+    def train(self, x, y, learning_rate=1e-7, reg=2.5e4):
         """
         Perform a training iteration of the linear classifier
 
-        :param X: Training data
+        :param x: Training data
         :param y: Ground truth labels
         :param learning_rate: Learning rate
         :param reg: Regularization coefficient
@@ -182,7 +198,7 @@ class LinearClassifier:
         n = len(y)
 
         # compute scores: W*x
-        scores = self.W.dot(X)
+        scores = self.W.dot(x)
 
         # Compute the margins
         margins = np.maximum(0, scores - scores[y, np.arange(n)] + 1)
@@ -194,7 +210,7 @@ class LinearClassifier:
         # Compute hinge loss contribution to dW
         mask = np.zeros(scores.shape)
         mask[margins > 0] = 1.0
-        dW = mask.dot(X.T) / n
+        dW = mask.dot(x.T) / n
 
         # Compute the accuracy for statistical purposes
         accuracy = np.sum(np.argmax(scores, axis=0) == y) / n
