@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Giacomo Parmeggiani <giacomo.parmeggiani@gmail.com>
-
-Download and extract datasets from the internet.
+"""Download and extract datasets from the internet.
 
 Usage:
 python get.py [dataset]
@@ -19,87 +16,105 @@ import hashlib
 from urllib.request import urlretrieve
 import tarfile
 
+__author__ = "Giacomo Parmeggiani <giacomo.parmeggiani@gmail.com>"
+
+
 
 datasets_urls = {
-    'cifar10': ('https://www.cs.toronto.edu/~kriz/', 'cifar-10-python.tar.gz', "c58f30108f718f92721af3b95e74349a"),
-    'cifar100': ('https://www.cs.toronto.edu/~kriz/', 'cifar-100-python.tar.gz', "eb9058c3a382ffc7106e4002c42a8d85")
+    'cifar10': [('https://www.cs.toronto.edu/~kriz/', 'cifar-10-python.tar.gz', "c58f30108f718f92721af3b95e74349a")],
+    'cifar100': [('https://www.cs.toronto.edu/~kriz/', 'cifar-100-python.tar.gz', "eb9058c3a382ffc7106e4002c42a8d85")]
 }
 
 
-def download(base_url, file_name, md5_hash):
-    """
-    Download a file and check its MD5 checksum.
+def download(base_url, file_name, md5_hash=None):
+    """Download a file and check its MD5 checksum, if provided.
+
     If the file already exists and it is not corrupted, the download is skipped
 
-    :param base_url: Base url of the file. Trailing slash needed
-    :param file_name: The filename
-    :param md5_hash: The MD5 hash of the file
-    :return: True if the operation completed successfully
+    Args:
+        (str) base_url: Base url of the file. Trailing slash needed
+        (str) file_name: The filename
+        (str) md5_hash: The MD5 hash of the file
+    
+    Returns: 
+        True if the operation completed successfully
     """
 
     # Check if the file is already available
-    if os.path.isfile(file_name):
-        if check_md5(file_name, md5_hash):
-            print("\'{}\' exists already with the correct MD5 hash".format(file_name))
+    if md5_hash is not None and os.path.isfile(file_name):
+        if check_file_md5(file_name, md5_hash):
+            print("\'{}\' already exists with the correct MD5 hash".format(file_name))
             return True
         else:
-            print("\'{}\' exists already, but it has a bad MD5 hash. Downloading a new copy of the file".format(file_name))
+            print("\'{}\' already exists, however it has a bad MD5 hash. Downloading a new copy of the file".format(file_name))
 
     print("Downloading {}".format(file_name))
 
     def reporthook(blocknum, blocksize, totalsize):
+        """Helper function used to print the download progress
+        """
         readsofar = blocknum * blocksize
         if totalsize > 0:
-            percent = readsofar * 1e2 / totalsize
-            s = "\r%5.1f%% %*d / %d" % (
-                percent, len(str(totalsize)), readsofar, totalsize)
+            percent = readsofar * 100 / totalsize
+            s = "\r%5.1f%% %*d / %d" % (percent, len(str(totalsize)), readsofar, totalsize)
             sys.stderr.write(s)
-            if readsofar >= totalsize:  # near the end
+            if readsofar >= totalsize:
                 sys.stderr.write("\n")
-        else:  # total size is unknown
+        else:
             sys.stderr.write("read %d\n" % (readsofar,))
 
-    urlretrieve(base_url+file_name, file_name, reporthook)
+    urlretrieve(
+        base_url+file_name, 
+        filename=file_name, 
+        reporthook=reporthook)
 
-    if check_md5(file_name, md5_hash):
-        print("Download completed.")
-        return True
-    else:
+
+    if md5_hash is not None and not check_file_md5(file_name, md5_hash):
         print("Download failed: MD5 mismatch")
         return False
 
+    else:
+        print("Download completed.")
+        return True
 
-def md5(file_name):
-    """
-    Calculate the MD5 hash of a file
+
+def file_md5(file_name):
+    """Calculate the MD5 hash of a file.
     
-    :param file_name: the neame of the file
-    :return: 
+    Args:
+        (str) file_name: the name of the file
+    
+    Returns:
+        (str) The hex string representation of the MD5 digest of the file
     """
 
     hash_md5 = hashlib.md5()
-    with open(file_name, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
+
+    with open(file_name, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
             hash_md5.update(chunk)
+
     return hash_md5.hexdigest()
 
 
-def check_md5(file_name, real_hash):
-    """
+def check_file_md5(file_name, expected_hash):
+    """ Check if a file has the expected MD5 hash
 
-    :param file_name:
-    :param real_hash:
-    :return:
+    Args:
+        (str) file_name: The name of the file you want to check the MD5 hash of
+        (str) expected_hash: The expected hash for the file
+    
+    Returns:
+        (boolean) True if the file's hash matches the expected MD5 hash
     """
-    file_hash = md5(file_name)
-    return file_hash == real_hash
+    return file_md5(file_name) == expected_hash
 
 
 def tar_extract(file_name):
-    """
-    Extract the .tar.gz file
-    :param file_name:
-    :return:
+    """ Extract a .tar.gz file
+
+    Args:
+        (str) file_name: The name of the .tar.gz file to extract
     """
     tar = tarfile.open(file_name)
     sys.stdout.flush()
@@ -108,10 +123,7 @@ def tar_extract(file_name):
 
 
 def print_usage():
-    """
-    Print the usage of this script
-
-    :return:
+    """Print the usage of this script.
     """
     print("""Usage: python get.py [dataset]
 
@@ -121,9 +133,9 @@ cifar100    CIFAR 100""")
 
 
 def main():
-    """
-    Main function
-    :return:
+    """Main function.
+    
+    Parse the command line arguments and download the necessary files for the dataset
     """
 
     # Make sure we are using Python 3
@@ -138,19 +150,21 @@ def main():
         print_usage()
         exit(2)
 
-    # Download the dataset
-    file_name = ""
-    try:
-        base_url, file_name, md5_hash = datasets_urls[dataset_name.lower()]
-        download(base_url, file_name, md5_hash)
-
+    # Get the datasets info
+    try:    
+        dataset = datasets_urls[dataset_name.lower()]
     except KeyError:
-        print("Unknown dataset \'dataset_name\'")
+        print("Unknown dataset \'{}\'".format(dataset_name))
         exit(2)
 
-    if file_name.endswith(".tar.gz"):
-        print("Extracting files")
-        tar_extract(file_name)
+
+    # Download the dataset file(s)
+    for base_url, file_name, md5_hash in dataset:
+        download(base_url, file_name, md5_hash)
+
+        if file_name.endswith(".tar.gz"):
+            print("Extracting {}".format(file_name))
+            tar_extract(file_name)
 
 
 if __name__ == '__main__':
