@@ -8,6 +8,7 @@ python get.py [dataset]
 Currently supported datasets:
 cifar10     The CIFAR 10 dataset
 cifar100    The CIFAR 100 dataset
+iris        Iris flower data set
 
 """
 import sys
@@ -18,11 +19,13 @@ import tarfile
 
 __author__ = "Giacomo Parmeggiani <giacomo.parmeggiani@gmail.com>"
 
-
-
 datasets_urls = {
     'cifar10': [('https://www.cs.toronto.edu/~kriz/', 'cifar-10-python.tar.gz', "c58f30108f718f92721af3b95e74349a")],
-    'cifar100': [('https://www.cs.toronto.edu/~kriz/', 'cifar-100-python.tar.gz', "eb9058c3a382ffc7106e4002c42a8d85")]
+    'cifar100': [('https://www.cs.toronto.edu/~kriz/', 'cifar-100-python.tar.gz', "eb9058c3a382ffc7106e4002c42a8d85")],
+    'iris': [
+        ('https://archive.ics.uci.edu/ml/machine-learning-databases/iris/', 'iris.data', "42615765a885ddf54427f12c34a0a070"),
+        ('https://archive.ics.uci.edu/ml/machine-learning-databases/iris/', 'iris.names', "1759b220ad1e305d573a7dbbdb9c7039"),
+    ]
 }
 
 
@@ -43,20 +46,20 @@ def download(base_url, file_name, md5_hash=None):
     # Check if the file is already available
     if md5_hash is not None and os.path.isfile(file_name):
         if check_file_md5(file_name, md5_hash):
-            print("\'{}\' already exists with the correct MD5 hash".format(file_name))
+            print("'{}' already exists with the correct MD5 hash".format(file_name))
             return True
         else:
-            print("\'{}\' already exists, however it has a bad MD5 hash. Downloading a new copy of the file".format(file_name))
+            print("'{}' already exists, however it has a bad MD5 hash. Downloading a new copy of the file".format(file_name))
 
-    print("Downloading {}".format(file_name))
+    print("Downloading '{}'".format(file_name))
 
     def reporthook(blocknum, blocksize, totalsize):
         """Helper function used to print the download progress
         """
         readsofar = blocknum * blocksize
         if totalsize > 0:
-            percent = readsofar * 100 / totalsize
-            s = "\r%5.1f%% %*d / %d" % (percent, len(str(totalsize)), readsofar, totalsize)
+            percent = min(100, readsofar * 100 / totalsize)
+            s = "\r%5.1f%% %*d / %d" % (percent, len(str(totalsize)), min(readsofar, totalsize), totalsize)
             sys.stderr.write(s)
             if readsofar >= totalsize:
                 sys.stderr.write("\n")
@@ -128,8 +131,9 @@ def print_usage():
     print("""Usage: python get.py [dataset]
 
 [dataset]:
-cifar10     CIFAR 10
-cifar100    CIFAR 100""")
+cifar10     CIFAR 10 dataset
+cifar100    CIFAR 100 dataset
+iris        Iris flower data set""")
 
 
 def main():
@@ -145,18 +149,24 @@ def main():
     # Print usage if the argument is missing
     dataset_name = None
     try:
-        dataset_name = str(sys.argv[1])
+        dataset_name = str(sys.argv[1]).lower()
     except IndexError:
         print_usage()
         exit(2)
 
     # Get the datasets info
     try:    
-        dataset = datasets_urls[dataset_name.lower()]
+        dataset = datasets_urls[dataset_name]
     except KeyError:
-        print("Unknown dataset \'{}\'".format(dataset_name))
+        print("Unknown dataset '{}'".format(dataset_name))
         exit(2)
 
+    # create a folder if the dataset contains more than one file
+    if len(dataset) > 1:
+        if not os.path.exists(dataset_name):
+            os.makedirs(dataset_name)
+            print("Creating '{}' folder".format(dataset_name))
+            os.chdir(dataset_name)
 
     # Download the dataset file(s)
     for base_url, file_name, md5_hash in dataset:
